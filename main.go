@@ -16,27 +16,20 @@ import (
 )
 
 func main() {
-	fmt.Println("Thing .1")
+
 	// parse args.
 	flagSet := flag.NewFlagSet(os.Args[0], flag.ExitOnError)
 
-	fmt.Println("Thing .12")
-
-	fmt.Println("Flag set", flagSet)
-	fmt.Println("Os.Args[1:]", os.Args[1:])
-
-	fmt.Println("Thing .13")
+	// fmt.Println("Flag set", flagSet)
+	// fmt.Println("Os.Args[1:]", os.Args[1:])
 
 	scheduler, data, err := parseCLI(flagSet, os.Args[1:])
 
-	fmt.Println("Thing .2")
 	if err != nil {
 		_, _ = fmt.Fprintln(os.Stdout, err)
 		flagSet.PrintDefaults()
 		os.Exit(1)
 	}
-
-	fmt.Println("Thing 1")
 
 	// Load and parse processes.
 	processes, err := loadProcesses(data)
@@ -69,7 +62,6 @@ const (
 
 func parseCLI(flagSet *flag.FlagSet, args []string) (cmd Scheduler, data io.Reader, err error) {
 
-	fmt.Println("Thing 3")
 	fcfsFlag := flagSet.Bool(fcfs.String(), false, "First-come, first-serve scheduling")
 	sjfFlag := flagSet.Bool(sjf.String(), false, "Shortest-job-first scheduling")
 	sjfpFlag := flagSet.Bool(sjfp.String(), false, "Shortest-job-first with priority scheduling")
@@ -78,7 +70,6 @@ func parseCLI(flagSet *flag.FlagSet, args []string) (cmd Scheduler, data io.Read
 		return 0, nil, err
 	}
 
-	fmt.Println("Thing 4")
 	// validate only one flag is set
 	var count int
 	if *fcfsFlag {
@@ -97,8 +88,6 @@ func parseCLI(flagSet *flag.FlagSet, args []string) (cmd Scheduler, data io.Read
 		count++
 		cmd = rr
 	}
-
-	fmt.Println("Thing 5")
 
 	switch count {
 	case 0:
