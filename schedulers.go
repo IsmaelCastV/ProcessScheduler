@@ -4,9 +4,8 @@ import (
 	"fmt"
 	//"go/printer"
 	"io"
-	"os"
-
-	"strconv"
+	//"os"
+	//"strconv"
 )
 
 type (
@@ -108,23 +107,14 @@ func SJFSchedule(w io.Writer, title string, processes []Process) {
 		gantt           = make([]TimeSlice, 0)
 	)
 
-	// fmt.Println("*****Before Sorting******")
-
-	// for i := range processes {
-
-	// 	fmt.Println("Processes ID: ", processes[i].ProcessID, "| Duration: ", processes[i].BurstDuration)
-	// }
-
-	//REFACTOR START
-
 	var currentTimer int64 = 0
 	var currentIndex int
 	var nextIndex int
 	var currentProcessID string
-	var currentProcessBursts int64
 	var waitTime int64
 	var startTime int64
 
+	//new processes list used for burst time changes
 	processBurstTimes := make([]Process, len(processes))
 	copy(processBurstTimes, processes)
 
@@ -132,45 +122,16 @@ func SJFSchedule(w io.Writer, title string, processes []Process) {
 	turnAroundTimes := make([]float64, len(processes))
 	completionTimes := make([]float64, len(processes))
 
-	//TEST:
-	// processes[1].BurstDuration = 0
-
-	// fmt.Println("Hard Code: ", processes[1].ProcessID, " Duration:  ", processes[1].BurstDuration)
-	var loopControl = 50
-	//END OF TEST
-
 	currentIndex = findNextShortProcessIndex(0, processBurstTimes)
 
 	currentProcessID = processes[currentIndex].ProcessID
-	currentProcessBursts = processes[currentIndex].BurstDuration
 	startTime = 0
-
-	DebugTitle(0, "Starting Execution")
 
 	for {
 
-		//DEBUG SECTION
-		if loopControl == 0 {
-			os.Exit(loopControl)
-		}
-		//END DEBUG SECTION
-
-		DebugPair(1, "Current Timer", strconv.FormatInt(currentTimer, 10))
-		DebugPair(2, "Current Process", currentProcessID)
-		DebugPair(2, "Duration", strconv.FormatInt(currentProcessBursts, 10))
-
-		// fmt.Println("#####Current Time: ", currentTimer, "#####")
-		// fmt.Println("\tCurrent Process: ", currentProcessID)
-		// fmt.Println("\tDuration: ", currentProcessBursts)
-
 		nextIndex = findNextShortProcessIndex(currentTimer, processBurstTimes)
 
-		DebugPair(1, "Next Index", strconv.Itoa(nextIndex))
-
 		if nextIndex == -1 || nextIndex == len(processes) {
-
-			fmt.Println("*****Execution Complete*****")
-			fmt.Println("Current Timer: ", currentTimer)
 
 			gantt = append(gantt, TimeSlice{
 				PID:   processes[currentIndex].ProcessID,
@@ -181,16 +142,10 @@ func SJFSchedule(w io.Writer, title string, processes []Process) {
 			break
 		}
 
-		fmt.Println("")
-
 		//if new process takes priority
 		if processes[nextIndex].ProcessID != currentProcessID {
 
 			//preempt current process
-
-			fmt.Println("------->*****Preemptive Action*****")
-			fmt.Println("\t#\tOld Process: ", currentProcessID)
-			fmt.Println("\t#\tNew Duration: ", currentProcessBursts)
 
 			//Old process' timeslice is added to the gantt table
 			gantt = append(gantt, TimeSlice{
@@ -210,44 +165,32 @@ func SJFSchedule(w io.Writer, title string, processes []Process) {
 			startTime = currentTimer
 
 			currentProcessID = processBurstTimes[currentIndex].ProcessID
-			currentProcessBursts = processBurstTimes[currentIndex].BurstDuration
 
 			//new process' wait time is calculated
 			waitTime = currentTimer - processes[currentIndex].ArrivalTime
 			waitTimes[currentIndex] += waitTime
 			totalWait += float64(waitTimes[currentIndex])
 
-			fmt.Println("\t@WaitTime: ", waitTime)
-			fmt.Println("\t@Processes Total Wait Time: ", waitTimes[currentIndex])
-
 			//partial turnaround and completion times calculated
 			turnAroundTimes[currentIndex] += float64(waitTimes[currentIndex])
 			completionTimes[currentIndex] += float64(waitTimes[currentIndex])
-
-			fmt.Println("\t#New Process: ", currentProcessID)
-			fmt.Println("\t#\tDuration: ", currentProcessBursts)
-			fmt.Println("\t#\tCurrent Wait Time: ", waitTimes[currentIndex], "@index: ", currentIndex)
-			fmt.Println("")
-
 		}
 
+		//Decrementing amount processes has left if same process continues
 		processBurstTimes[currentIndex].BurstDuration -= 1
-		currentProcessBursts = processBurstTimes[currentIndex].BurstDuration
 
 		currentTimer++
-
-		loopControl--
 
 	}
 
 	for i := 0; i < len(processes); i++ {
 
+		//complete turnaround times calculated for all processes
 		turnAroundTimes[i] += float64(processes[i].BurstDuration)
 		totalTurnaround += turnAroundTimes[i]
 
+		//complete completion times calculated for all processes
 		completionTimes[i] += float64(processes[i].BurstDuration) + float64(processes[i].ArrivalTime)
-
-		fmt.Println("Process[ ", i, " ]: ", processes[i].BurstDuration)
 
 		//scheduler holds process on first come first serve basis
 		schedule[i] = []string{
@@ -271,10 +214,9 @@ func SJFSchedule(w io.Writer, title string, processes []Process) {
 	aveTurnaround := totalTurnaround / count
 
 	//average process / time
-
-	fmt.Println("\nCurrent Timer: ", float64(currentTimer), " | Count: ", count)
 	aveThroughput := count / (float64(currentTimer))
 
+	//Final outputs
 	outputTitle(w, title)
 	outputGantt(w, gantt)
 	outputSchedule(w, schedule, aveWait, aveTurnaround, aveThroughput)
@@ -283,59 +225,33 @@ func SJFSchedule(w io.Writer, title string, processes []Process) {
 
 func findNextShortProcessIndex(currentTime int64, processes []Process) int {
 
-	if len(processes) == 0 {
-
-		return -1
-	}
-
-	var processNeedsCPU bool
 	var processWaiting bool
 	var processIsShortest bool
 
 	var shortestProcessIndex int = -1
 
-	//fmt.Println("Largest Value: ", shortestBurst)
-
-	fmt.Println("\t******Finding Next Process******")
-
 	for i := 0; i < len(processes); i++ {
 
-		// if processes[i].BurstDuration == 0 {
-		// 	processes = removeItem(processes, i)
-		// }
-
-		if processes[i].BurstDuration == 0 {
-
+		//skip processes with no execution needed
+		if processes[i].BurstDuration <= 0 {
 			continue
 		}
 
+		//initiate to first value with CPU time needed
 		if shortestProcessIndex == -1 {
-
 			shortestProcessIndex = i
 			continue
 		}
-
-		processNeedsCPU = processes[i].BurstDuration > 0
 
 		processWaiting = processes[i].ArrivalTime <= int64(currentTime)
 
 		processIsShortest = processes[i].BurstDuration < processes[shortestProcessIndex].BurstDuration
 
-		// fmt.Println("\tProcess: ", processes[i].ProcessID, " | Duration: ", processes[i].BurstDuration)
-		// fmt.Println("\tProcess Needs CPU: ", processNeedsCPU, " | Process In Queue: ", processWaiting, " | Process is Shortest: ", processIsShortest)
-		// fmt.Println("\t*****")
-
-		if processNeedsCPU && processWaiting && processIsShortest {
-
+		if processWaiting && processIsShortest {
 			shortestProcessIndex = i
-			fmt.Println("\tUpdate: Shortest Job: ", processes[shortestProcessIndex].ProcessID, " Duration: ", processes[shortestProcessIndex].BurstDuration)
-
 		}
 	}
 
-	//fmt.Println("Here's ya problem: ", shortestProcessIndex)
-
-	//fmt.Println("\tATT: Active Process: ", processes[shortestProcessIndex].ProcessID, " | Index: ", shortestProcessIndex)
 	return shortestProcessIndex
 
 }
