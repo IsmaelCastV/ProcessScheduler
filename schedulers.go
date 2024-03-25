@@ -5,6 +5,8 @@ import (
 	//"go/printer"
 	"io"
 	"os"
+
+	"strconv"
 )
 
 type (
@@ -143,6 +145,8 @@ func SJFSchedule(w io.Writer, title string, processes []Process) {
 	currentProcessBursts = processes[currentIndex].BurstDuration
 	startTime = 0
 
+	DebugTitle(0, "Starting Execution")
+
 	for {
 
 		//DEBUG SECTION
@@ -151,15 +155,22 @@ func SJFSchedule(w io.Writer, title string, processes []Process) {
 		}
 		//END DEBUG SECTION
 
-		fmt.Println("#####Current Time: ", currentTimer, "#####")
-		fmt.Println("\tCurrent Process: ", currentProcessID)
-		fmt.Println("\tDuration: ", currentProcessBursts)
+		DebugPair(1, "Current Timer", strconv.FormatInt(currentTimer, 10))
+		DebugPair(2, "Current Process", currentProcessID)
+		DebugPair(2, "Duration", strconv.FormatInt(currentProcessBursts, 10))
+
+		// fmt.Println("#####Current Time: ", currentTimer, "#####")
+		// fmt.Println("\tCurrent Process: ", currentProcessID)
+		// fmt.Println("\tDuration: ", currentProcessBursts)
 
 		nextIndex = findNextShortProcessIndex(currentTimer, processBurstTimes)
 
-		fmt.Println("nextIndex: ", nextIndex)
+		DebugPair(1, "Next Index", strconv.Itoa(nextIndex))
 
 		if nextIndex == -1 || nextIndex == len(processes) {
+
+			fmt.Println("*****Execution Complete*****")
+			fmt.Println("Current Timer: ", currentTimer)
 
 			gantt = append(gantt, TimeSlice{
 				PID:   processes[currentIndex].ProcessID,
@@ -172,6 +183,7 @@ func SJFSchedule(w io.Writer, title string, processes []Process) {
 
 		fmt.Println("")
 
+		//if new process takes priority
 		if processes[nextIndex].ProcessID != currentProcessID {
 
 			//preempt current process
@@ -180,27 +192,37 @@ func SJFSchedule(w io.Writer, title string, processes []Process) {
 			fmt.Println("\t#\tOld Process: ", currentProcessID)
 			fmt.Println("\t#\tNew Duration: ", currentProcessBursts)
 
-			//process added to gantt chart
+			//Old process' timeslice is added to the gantt table
 			gantt = append(gantt, TimeSlice{
 				PID:   processes[currentIndex].ProcessID,
 				Start: startTime,
 				Stop:  currentTimer,
 			})
 
-			//load new processes
+			//if processes is not complete
+			if processBurstTimes[currentIndex].BurstDuration != 0 {
+				//Time spent in the CPU does not add to wait time
+				waitTimes[currentIndex] += (currentTimer - startTime) * -1
+			}
 
+			//load new process
 			currentIndex = nextIndex
 			startTime = currentTimer
 
 			currentProcessID = processBurstTimes[currentIndex].ProcessID
 			currentProcessBursts = processBurstTimes[currentIndex].BurstDuration
 
+			//new process' wait time is calculated
 			waitTime = currentTimer - processes[currentIndex].ArrivalTime
 			waitTimes[currentIndex] += waitTime
-			totalWait += float64(waitTime)
+			totalWait += float64(waitTimes[currentIndex])
 
-			turnAroundTimes[currentIndex] += float64(waitTime)
-			completionTimes[currentIndex] += float64(waitTime)
+			fmt.Println("\t@WaitTime: ", waitTime)
+			fmt.Println("\t@Processes Total Wait Time: ", waitTimes[currentIndex])
+
+			//partial turnaround and completion times calculated
+			turnAroundTimes[currentIndex] += float64(waitTimes[currentIndex])
+			completionTimes[currentIndex] += float64(waitTimes[currentIndex])
 
 			fmt.Println("\t#New Process: ", currentProcessID)
 			fmt.Println("\t#\tDuration: ", currentProcessBursts)
@@ -249,7 +271,9 @@ func SJFSchedule(w io.Writer, title string, processes []Process) {
 	aveTurnaround := totalTurnaround / count
 
 	//average process / time
-	aveThroughput := count / (float64(currentTimer) - 1)
+
+	fmt.Println("\nCurrent Timer: ", float64(currentTimer), " | Count: ", count)
+	aveThroughput := count / (float64(currentTimer))
 
 	outputTitle(w, title)
 	outputGantt(w, gantt)
